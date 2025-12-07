@@ -33,7 +33,7 @@ resource "azurerm_subnet" "container_apps" {
   name                 = "container-apps-subnet"
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = ["10.0.1.0/24"]
+  address_prefixes     = ["10.0.0.0/23"]
 }
 
 # Subnet for Private Endpoints
@@ -184,14 +184,19 @@ resource "azurerm_log_analytics_workspace" "main" {
 
 # Container Apps Environment
 resource "azurerm_container_app_environment" "main" {
-  name                       = "${var.project_name}-env-${var.environment}"
-  location                   = azurerm_resource_group.main.location
-  resource_group_name        = azurerm_resource_group.main.name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
-  infrastructure_subnet_id   = azurerm_subnet.container_apps.id
+  name                           = "${var.project_name}-env-${var.environment}"
+  location                       = azurerm_resource_group.main.location
+  resource_group_name            = azurerm_resource_group.main.name
+  log_analytics_workspace_id     = azurerm_log_analytics_workspace.main.id
+  infrastructure_subnet_id       = azurerm_subnet.container_apps.id
   internal_load_balancer_enabled = var.internal_load_balancer_enabled
 
   tags = var.tags
+
+  depends_on = [
+    azurerm_private_dns_zone_virtual_network_link.cosmos,
+    azurerm_private_dns_zone_virtual_network_link.redis
+  ]
 }
 
 # Container Registry (Optional - if building images in Azure)
@@ -226,7 +231,7 @@ resource "azurerm_container_app" "main" {
 
       env {
         name  = "MONGO_URI"
-        value = azurerm_cosmosdb_account.main.connection_strings[0]
+        value = azurerm_cosmosdb_account.main.primary_mongodb_connection_string
       }
 
       env {

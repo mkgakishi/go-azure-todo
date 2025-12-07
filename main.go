@@ -27,9 +27,9 @@ import (
 // --- Configuration & Constants ---
 
 const (
-	DefaultPort = "8080"
-	DBName      = "TodoDB"
-	ColName     = "todos"
+	DefaultPort   = "8080"
+	DefaultDBName = "TodoDB"
+	ColName       = "todos"
 )
 
 // --- HTML Template ---
@@ -156,11 +156,19 @@ func main() {
 	}
 
 	// 3. Setup Application
+	dbName := os.Getenv("MONGODB_DATABASE")
+	if dbName == "" {
+		dbName = DefaultDBName
+		log.Printf("MONGODB_DATABASE not set, using default: %s", dbName)
+	} else {
+		log.Printf("Using MongoDB database: %s", dbName)
+	}
+
 	app := &App{
 		Router:      chi.NewRouter(),
 		MongoClient: mongoClient,
 		RedisClient: redisClient,
-		Collection:  mongoClient.Database(DBName).Collection(ColName),
+		Collection:  mongoClient.Database(dbName).Collection(ColName),
 		Template:    tpl,
 	}
 
@@ -345,7 +353,8 @@ func (app *App) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (app *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	todos, err := app.getAllTodos(r.Context())
 	if err != nil {
-		http.Error(w, "Failed to load todos", http.StatusInternalServerError)
+		log.Printf("Error loading todos: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to load todos: %v", err), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
@@ -355,7 +364,8 @@ func (app *App) handleHome(w http.ResponseWriter, r *http.Request) {
 func (app *App) listTodos(w http.ResponseWriter, r *http.Request) {
 	todos, err := app.getAllTodos(r.Context())
 	if err != nil {
-		http.Error(w, "Failed to fetch todos", http.StatusInternalServerError)
+		log.Printf("Error fetching todos: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to fetch todos: %v", err), http.StatusInternalServerError)
 		return
 	}
 

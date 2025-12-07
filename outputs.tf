@@ -15,7 +15,7 @@ output "cosmos_db_endpoint" {
 
 output "cosmos_db_connection_string" {
   description = "Cosmos DB MongoDB connection string"
-  value       = azurerm_cosmosdb_account.main.connection_strings[0]
+  value       = azurerm_cosmosdb_account.main.primary_mongodb_connection_string
   sensitive   = true
 }
 

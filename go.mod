@@ -1,6 +1,6 @@
 module github.com/mkgakishi/go-azure-todo
 
-go 1.25.4
+go 1.23
 
 require (
 	github.com/go-chi/chi/v5 v5.0.10
