@@ -230,7 +230,7 @@ resource "azurerm_container_app" "main" {
       memory = var.container_memory
 
       env {
-        name  = "MONGO_URI"
+        name  = "AZURE_COSMOS_CONNECTIONSTRING"
         value = azurerm_cosmosdb_account.main.primary_mongodb_connection_string
       }
 
@@ -240,12 +240,27 @@ resource "azurerm_container_app" "main" {
       }
 
       env {
-        name  = "REDIS_ADDR"
-        value = "${azurerm_redis_cache.main.hostname}:${azurerm_redis_cache.main.ssl_port}"
+        name  = "AZURE_REDIS_HOST"
+        value = azurerm_redis_cache.main.hostname
       }
 
       env {
-        name        = "REDIS_PASSWORD"
+        name  = "AZURE_REDIS_PORT"
+        value = tostring(azurerm_redis_cache.main.ssl_port)
+      }
+
+      env {
+        name  = "AZURE_REDIS_DATABASE"
+        value = "0"
+      }
+
+      env {
+        name  = "AZURE_REDIS_SSL"
+        value = "true"
+      }
+
+      env {
+        name        = "AZURE_REDIS_PASSWORD"
         secret_name = "redis-password"
       }
 

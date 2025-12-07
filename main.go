@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -213,11 +214,11 @@ func main() {
 // --- Connection Helpers ---
 
 func connectMongo(ctx context.Context) (*mongo.Client, error) {
-	uri := os.Getenv("MONGO_URI")
+	uri := os.Getenv("AZURE_COSMOS_CONNECTIONSTRING")
 	if uri == "" {
 		// Default to local MongoDB for development
 		uri = "mongodb://localhost:27017"
-		log.Println("MONGO_URI not set, using local MongoDB at localhost:27017")
+		log.Println("AZURE_COSMOS_CONNECTIONSTRING not set, using local MongoDB at localhost:27017")
 	}
 
 	// Azure Cosmos DB requires TLS
@@ -245,23 +246,41 @@ func connectMongo(ctx context.Context) (*mongo.Client, error) {
 }
 
 func connectRedis(ctx context.Context) (*redis.Client, error) {
-	addr := os.Getenv("REDIS_ADDR") // e.g., "mycache.redis.cache.windows.net:6380"
-	password := os.Getenv("REDIS_PASSWORD")
+	host := os.Getenv("AZURE_REDIS_HOST")
+	port := os.Getenv("AZURE_REDIS_PORT")
+	password := os.Getenv("AZURE_REDIS_PASSWORD")
+	ssl := os.Getenv("AZURE_REDIS_SSL")
+	dbStr := os.Getenv("AZURE_REDIS_DATABASE")
 
-	if addr == "" {
+	// Parse database number
+	db := 0
+	if dbStr != "" {
+		if parsed, err := strconv.Atoi(dbStr); err == nil {
+			db = parsed
+		}
+	}
+
+	// Build address
+	var addr string
+	if host == "" {
 		// Default to local Redis for development
 		addr = "localhost:6379"
-		log.Println("REDIS_ADDR not set, using local Redis at localhost:6379")
+		log.Println("AZURE_REDIS_HOST not set, using local Redis at localhost:6379")
+	} else {
+		if port == "" {
+			port = "6380" // Default Azure Redis port
+		}
+		addr = fmt.Sprintf("%s:%s", host, port)
 	}
 
 	redisOptions := &redis.Options{
 		Addr:     addr,
 		Password: password,
-		DB:       0,
+		DB:       db,
 	}
 
-	// Only use TLS for Azure Redis (when using redis.cache.windows.net)
-	if strings.Contains(addr, "redis.cache.windows.net") {
+	// Enable TLS if specified or if using Azure Redis
+	if ssl == "true" || strings.Contains(host, "redis.cache.windows.net") {
 		redisOptions.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 	}
 
@@ -319,9 +338,9 @@ func (app *App) getAllTodos(ctx context.Context) ([]Todo, error) {
 	}
 
 	// 2. Fetch from MongoDB
-	// Sort by CreatedAt descending to show newest first
-	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
-	cursor, err := app.Collection.Find(ctx, bson.M{}, opts)
+	// Note: Removed sort to avoid index issues with Cosmos DB serverless
+	// Cosmos DB serverless doesn't include default indexes on custom fields
+	cursor, err := app.Collection.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
@@ -330,6 +349,19 @@ func (app *App) getAllTodos(ctx context.Context) ([]Todo, error) {
 	var todos []Todo
 	if err = cursor.All(ctx, &todos); err != nil {
 		return nil, err
+	}
+
+	// Sort in memory instead (works for reasonable dataset sizes)
+	// This avoids requiring index creation in Cosmos DB
+	if len(todos) > 0 {
+		// Sort by CreatedAt descending (newest first)
+		for i := 0; i < len(todos)-1; i++ {
+			for j := i + 1; j < len(todos); j++ {
+				if todos[i].CreatedAt.Before(todos[j].CreatedAt) {
+					todos[i], todos[j] = todos[j], todos[i]
+				}
+			}
+		}
 	}
 
 	// 3. Cache the result
