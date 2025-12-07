@@ -1,0 +1,39 @@
+# Example Terraform variables
+# Copy this file to terraform.tfvars and customize the values
+
+resource_group_name = "rg-go-todo-app-dev"
+location            = "South Africa North"
+project_name        = "go-todo"
+environment         = "dev"
+
+tags = {
+  Environment = "dev"
+  Project     = "go-todo-app"
+  ManagedBy   = "Terraform"
+  Owner       = "YourName"
+}
+
+# MongoDB Database
+mongodb_database_name = "tododb"
+
+# Redis Cache Configuration
+redis_capacity = 0      # 0 for Basic/Standard C0, 1 for C1, etc.
+redis_family   = "C"    # C for Basic/Standard, P for Premium
+redis_sku_name = "Basic" # Basic, Standard, or Premium
+
+# Container App Configuration
+# Docker image configuration - will be pulled from the ACR created by Terraform
+docker_image_name = "go-todo-app"
+docker_image_tag  = "latest"
+container_cpu    = 0.5
+container_memory = "1Gi"
+app_port         = 8080
+
+min_replicas = 1
+max_replicas = 3
+
+# Set to false for internal-only access (more secure)
+ingress_external_enabled = true
+
+# Set to true for completely private Container Apps environment
+internal_load_balancer_enabled = false
