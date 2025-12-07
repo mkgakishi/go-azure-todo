@@ -546,34 +546,23 @@ func (app *App) deleteTodo(w http.ResponseWriter, r *http.Request) {
 	// Invalidate caches
 	app.RedisClient.Del(ctx, "todos:all", fmt.Sprintf("todo:%s", idStr))
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"deleted"}`))
+	// Check if this is a form submission or API call
+	contentType := r.Header.Get("Content-Type")
+	acceptHeader := r.Header.Get("Accept")
+	isFormOrBrowser := strings.Contains(contentType, "application/x-www-form-urlencoded") ||
+		strings.Contains(acceptHeader, "text/html") ||
+		r.Header.Get("X-Requested-With") == ""
+
+	if isFormOrBrowser {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"deleted"}`))
+	}
 }
 
 // deleteTodoForm handles deletion via HTML form POST
 func (app *App) deleteTodoForm(w http.ResponseWriter, r *http.Request) {
+	// This route now just calls deleteTodo which handles the redirect
 	app.deleteTodo(w, r)
-	// After "deleteTodo" writes the JSON response, we can't redirect easily unless we refactor deleteTodo to not write response.
-	// But since deleteTodo writes header 200, we can't redirect after.
-	// Let's copy logic for simplicity or refactor.
-	// Refactoring is cleaner, but for this snippet, let's just do a redirect logic here and assume deleteTodo logic is duplicated or shared.
-	// Actually, calling app.deleteTodo will write JSON. HTML forms will see that JSON.
-	// Better approach:
-
-	idStr := chi.URLParam(r, "id")
-	objID, err := primitive.ObjectIDFromHex(idStr)
-	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
-		return
-	}
-
-	ctx := r.Context()
-	_, err = app.Collection.DeleteOne(ctx, bson.M{"_id": objID})
-	if err != nil {
-		http.Error(w, "Failed to delete", http.StatusInternalServerError)
-		return
-	}
-
-	app.RedisClient.Del(ctx, "todos:all", fmt.Sprintf("todo:%s", idStr))
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
